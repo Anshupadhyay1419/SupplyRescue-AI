@@ -49,7 +49,10 @@ def _render_new_requirement_form() -> None:
         required_by = col4.date_input("Required delivery date", value=date.today() + timedelta(days=7),
                                       min_value=date.today() + timedelta(days=1))
         max_budget = col5.number_input("Maximum budget (₹)", min_value=1.0, value=150000.0, step=5000.0)
-        quality = st.text_input("Quality requirements", value="Industrial grade, RoHS compliant")
+        quality = st.text_input(
+            "Quality requirements", value="Industrial grade, RoHS compliant",
+            help="Recorded and shown to the approver. Not verified automatically: the simulation has no "
+                 "supplier certification data.")
         submitted = st.form_submit_button("Start AI Procurement", type="primary")
 
     if submitted:
@@ -137,7 +140,11 @@ def _render_plans() -> None:
     plans = repository.list_plans("PROCUREMENT")
     waiting = [plan for plan in plans if plan["status"] == "PROPOSED"]
     st.markdown(f"**{len(waiting)} plan(s) waiting for approval**")
-    for plan in waiting:
+    # The plan of the latest run is already shown (with its buttons) below the tabs - don't show it twice.
+    shown_below = (st.session_state.get("last_procurement_run") or {}).get("plan_id")
+    if shown_below in [plan["id"] for plan in waiting]:
+        st.caption(f"Plan #{shown_below} from the latest agent run is shown below the tabs.")
+    for plan in [plan for plan in waiting if plan["id"] != shown_below]:
         with st.container(border=True):
             request = repository.get_request(plan["request_id"])
             st.caption(f"Request #{request['id']}: {request['quantity']:,} × {request['part_number']}")

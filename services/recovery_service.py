@@ -22,6 +22,7 @@ from services.procurement_service import (
     PlanDecisionError,
     check_supplier_still_eligible,
     claim_plan_decision,
+    recalculate_order_total,
     release_supplier_stock,
     reserve_supplier_stock,
     reserve_warehouse_stock,
@@ -230,21 +231,14 @@ def approve_recovery_plan(plan_id: int, decided_by: str = "Procurement Officer",
 
         _retire_disrupted_commitment(conn, disruption, commitment, kept_qty, now)
 
-        # Recompute the order total from active commitments.
-        total = conn.execute(
-            "SELECT COALESCE(SUM(committed_qty * unit_price), 0) FROM supplier_commitments "
-            "WHERE order_id = ? AND status NOT IN ('CANCELLED', 'REPLACED')",
-            (order_id,),
-        ).fetchone()[0]
+        total = recalculate_order_total(conn, order_id)
         conn.execute("UPDATE disruptions SET status = 'RESOLVED', resolved_at = ? WHERE id = ?", (now, disruption["id"]))
         still_open = conn.execute(
             "SELECT COUNT(*) FROM disruptions WHERE order_id = ? AND status IN ('OPEN', 'RECOVERY_PROPOSED', 'UNRESOLVED')",
             (order_id,),
         ).fetchone()[0]
-        conn.execute(
-            "UPDATE purchase_orders SET total_cost = ?, status = ?, updated_at = ? WHERE id = ?",
-            (round(total, 2), "AT_RISK" if still_open else "CONFIRMED", now, order_id),
-        )
+        conn.execute("UPDATE purchase_orders SET status = ? WHERE id = ?",
+                     ("AT_RISK" if still_open else "CONFIRMED", order_id))
 
         # If the human accepted a plan with a larger budget or later deadline, record the new constraints.
         request = conn.execute(

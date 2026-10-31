@@ -254,7 +254,7 @@ def allocate_supply(
                                              days_available, min_reliability))
     if total_cost > budget:
         reasons.append(
-            f"Lowest possible cost ₹{total_cost:,.0f} exceeds the budget of ₹{budget:,.0f} "
+            f"Lowest possible cost ₹{total_cost:,.0f} exceeds the available budget of ₹{budget:,.0f} "
             f"by ₹{total_cost - budget:,.0f}."
         )
 

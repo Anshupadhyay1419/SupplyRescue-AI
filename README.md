@@ -1,5 +1,7 @@
 # SupplyRescue AI
 
+[![tests](https://github.com/Anshupadhyay1419/SupplyRescue-AI/actions/workflows/tests.yml/badge.svg)](https://github.com/Anshupadhyay1419/SupplyRescue-AI/actions/workflows/tests.yml)
+
 **An Agentic AI System for Intelligent Procurement and Supply Chain Disruption Management**
 
 *Intelligent Procurement & Supply Chain Recovery* — runs 100% locally with Ollama, LangGraph, SQLite and Streamlit. No paid or cloud APIs.
@@ -33,7 +35,7 @@ SupplyRescue AI is a tool-using **AI agent** (one LangGraph agent driven by a lo
 | Disruptions | Quantity reduction, cancellation, delivery delay, price increase — detected from `supplier_updates` signals |
 | Recovery | Alternative suppliers + warehouse, cost difference, delivery impact, optional human-approved budget/deadline relaxation, honest "No feasible recovery plan" reports |
 | Dashboard | 10 Streamlit pages incl. live agent timeline, KPIs and Plotly charts |
-| Quality | 56 unit tests (no Ollama needed) + 3 real-Ollama integration tests |
+| Quality | 67 unit tests (no Ollama needed) + 3 real-Ollama integration tests, GitHub Actions CI |
 
 ## 4. Technology stack
 
@@ -86,14 +88,23 @@ Full node-by-node explanation: [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md).
 
 ## 7. Screenshots
 
-Add screenshots after running the app locally, e.g.:
+Real captures of the running app (live Ollama agent runs; MCU-X100 order approved, then Apex cut 600 → 350).
 
-| Page | File |
-|---|---|
-| Overview | `docs/screenshots/overview.png` |
-| Agent activity timeline | `docs/screenshots/agent_activity.png` |
-| Disruption Center | `docs/screenshots/disruption_center.png` |
-| Recovery plan | `docs/screenshots/recovery_plan.png` |
+**Overview** — KPIs and charts computed from SQLite
+![Overview](docs/screenshots/overview.png)
+
+**AI Agent Activity** — the recovery agent's real tool calls, decision notes and results
+![AI Agent Activity](docs/screenshots/agent_activity.png)
+
+**Disruption Center** — pre-delivery shortage detected from the supplier's commitment update
+![Disruption Center](docs/screenshots/disruption_center.png)
+
+**Recovery Plans** — before/after, alternatives, validated plan, quality warning, human approval
+![Recovery Plans](docs/screenshots/recovery_plan.png)
+
+**Supplier Directory** and **Quotations**
+![Supplier Directory](docs/screenshots/supplier_directory.png)
+![Quotations](docs/screenshots/quotations.png)
 
 ## 8. Installation (Windows 11)
 
@@ -161,7 +172,7 @@ Step-by-step professor script: [docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md).
 ## 13. Testing
 
 ```powershell
-pytest                 # 56 unit tests, no Ollama required (~15 s)
+pytest                 # 67 unit tests, no Ollama required (~20 s) - also run by GitHub Actions
 pytest -m ollama -v    # 3 integration tests against the real local model (~3-5 min)
 ```
 
@@ -171,7 +182,8 @@ pytest -m ollama -v    # 3 integration tests against the real local model (~3-5 
 * The allocation is provably minimum-cost only under linear per-unit pricing (no minimum order quantities, volume discounts or shipping fees). Adding those would make it a heuristic.
 * Warehouse stock is treated as zero procurement cost (it is already owned).
 * A 4B local model is slower (~50-60 s per run on an RTX 3050) and its wording can be imperfect; that is why every number comes from Python and the UI marks the AI text as a summary.
-* Quality requirements are recorded and shown but not machine-checked (no certification data in the simulation).
+* **Quality requirements are not verified.** They are stored, shown to the approver with a warning, and passed to the LLM with an explicit "not verified" note — but the simulation has no supplier certification data, so the system never claims a supplier meets them.
+* A timed-out tool thread cannot be killed in Python. It keeps running in the background, but it can no longer save anything (see *Tool timeouts* in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)).
 * Single-user local app; SQLite locking is sufficient but not designed for many concurrent users.
 
 ## 15. Future improvements
@@ -193,8 +205,9 @@ supplyrescue-ai/
 ├── tools/                 LangChain tools the agent can call
 ├── agents/                LangGraph state, nodes, graph, activity log
 ├── ui/                    shared components + 10 pages
-├── utils/                 logging, validation, formatting
+├── utils/                 logging, validation, formatting, tool cancellation token
 ├── scripts/               verify_tool_calling.py
 ├── tests/                 pytest suite
-└── docs/                  architecture, explanation, workflow, demo guide
+├── docs/                  architecture, explanation, workflow, demo guide, screenshots
+└── .github/workflows/     CI: runs pytest (no Ollama) on every push
 ```

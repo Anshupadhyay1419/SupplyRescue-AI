@@ -109,10 +109,6 @@ def show_table(rows: list[dict], columns: dict | None = None, height: int | None
     st.dataframe(frame, hide_index=True, width="stretch", height=height or "auto")
 
 
-def show_error(error: Exception) -> None:
-    st.error(f"{error}")
-
-
 # ------------------------------------------------------------------ plan card
 
 def render_plan_card(plan: dict, key_prefix: str, allow_decision: bool = True) -> None:
@@ -125,15 +121,20 @@ def render_plan_card(plan: dict, key_prefix: str, allow_decision: bool = True) -
     st.markdown(f"#### {title} #{plan['id']} &nbsp; {status_badge(plan['status'])} &nbsp; "
                 f"{status_badge(plan['risk_level']) if plan['feasible'] else ''}", unsafe_allow_html=True)
 
+    is_recovery = plan["plan_type"] == "RECOVERY"
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        kpi_card("Units covered", f"{plan['quantity_covered']:,} / {plan['quantity_needed']:,}")
+        kpi_card("Units re-sourced" if is_recovery else "Units covered",
+                 f"{plan['quantity_covered']:,} / {plan['quantity_needed']:,}")
     with col2:
-        kpi_card("Estimated cost", format_inr(plan["total_cost"]), f"Budget {format_inr(plan['budget_available'])}")
+        # A recovery plan is checked against the budget still unused on the order, not the full budget.
+        budget_label = "Remaining order budget" if is_recovery else "Budget"
+        kpi_card("Estimated cost", format_inr(plan["total_cost"]),
+                 f"{budget_label} {format_inr(plan['budget_available'])}")
     with col3:
         kpi_card("Expected delivery", plan["expected_delivery"] or "-", f"Required by {plan['required_by'] or '-'}")
     with col4:
-        if plan["plan_type"] == "RECOVERY" and plan["cost_difference"] is not None:
+        if is_recovery and plan["cost_difference"] is not None:
             kpi_card("Cost difference", f"{'+' if plan['cost_difference'] >= 0 else '-'}"
                      f"{format_inr(abs(plan['cost_difference']))}", "vs. original commitment")
         else:
@@ -141,10 +142,17 @@ def render_plan_card(plan: dict, key_prefix: str, allow_decision: bool = True) -
 
     if plan["items"]:
         st.markdown("**Recommended suppliers and quantities**")
-        show_table(plan["items"], {
+        rows = [{**item, "reliability": f"{item['reliability']:.0%}" if item["reliability"] is not None else "-"}
+                for item in plan["items"]]
+        show_table(rows, {
             "supplier_name": "Source", "quantity": "Quantity", "unit_price": "Unit price (₹)",
             "line_cost": "Line cost (₹)", "lead_time_days": "Lead time (days)", "reliability": "Reliability",
         })
+
+    request = repository.get_request(plan["request_id"])
+    if request and request["quality_requirements"]:
+        st.warning(f"**Quality requirements:** {request['quality_requirements']} — not verified automatically "
+                   "(the simulation has no supplier certification data). Check them before approving.")
 
     if plan["reasons"]:
         st.error("**No feasible plan found under current constraints.**\n\n" +

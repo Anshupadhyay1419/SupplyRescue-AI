@@ -46,7 +46,7 @@ def test_budget_violation_makes_plan_infeasible():
     plan = planning_service.allocate_supply([make_source("A", 100, 100, 1)], "P-1", 100,
                                             TODAY + timedelta(days=5), 5000, TODAY)
     assert not plan["feasible"]
-    assert any("exceeds the budget" in reason for reason in plan["reasons"])
+    assert any("exceeds the available budget" in reason for reason in plan["reasons"])
 
 
 def test_deadline_excludes_slow_supplier():

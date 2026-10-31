@@ -43,8 +43,7 @@ def render() -> None:
     })
     st.dataframe(
         display, hide_index=True, width="stretch",
-        column_config={"Reliability": st.column_config.ProgressColumn("Reliability", format="%.0f%%",
-                                                                      min_value=0, max_value=100)},
+        column_config={"Reliability": st.column_config.NumberColumn("Reliability", format="%.0f%%")},
     )
     st.caption(f"{len(display)} offer(s) shown. Unapproved suppliers are visible here but are never selected "
                "automatically. Look-alike part numbers (e.g. MCU-X100B) are not compatible with MCU-X100.")

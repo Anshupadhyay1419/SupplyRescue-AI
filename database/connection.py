@@ -43,7 +43,7 @@ def get_connection() -> sqlite3.Connection:
 
 
 @contextmanager
-def transaction():
+def transaction(cancellation_token=None):
     """
     Run several writes as one atomic unit.
 
@@ -52,12 +52,18 @@ def transaction():
             conn.execute(...)
             conn.execute(...)
     If any statement raises an error, every change in the block is undone.
+
+    `cancellation_token` (optional, see utils/cancellation.py) is used by agent
+    tools: if the agent cancelled the tool after a timeout, nothing is saved.
     """
     connection = get_connection()
     try:
         connection.execute("BEGIN IMMEDIATE")  # take the write lock early to avoid double-writes
         yield connection
-        connection.commit()
+        if cancellation_token is not None:
+            cancellation_token.commit_if_not_cancelled(connection)
+        else:
+            connection.commit()
     except Exception:
         connection.rollback()
         raise

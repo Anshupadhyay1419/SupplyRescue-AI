@@ -60,6 +60,34 @@ agent_runs ── agent_activity_logs
 
 With linear per-unit prices and interchangeable units this greedy order **is** the minimum-cost solution, so "over budget" means *no* compliant plan exists. With MOQs/discounts it would only be a heuristic (documented in the code).
 
+## Tool timeouts (why a late tool can't change the database)
+
+Python threads cannot be killed, so after a timeout the worker thread keeps running. To make that harmless:
+
+1. Every tool call gets a `CancellationToken` (`utils/cancellation.py`), passed in the tool's `RunnableConfig`.
+2. The only agent tool that writes (`create_rfq`) saves everything in **one** transaction
+   (`quotation_service.send_rfqs_and_collect_responses`) and commits through the token.
+3. On timeout the agent calls `token.cancel()`. A lock makes *cancel* and *commit* mutually exclusive:
+   * cancel wins → the tool's later commit raises `ToolCancelledError` and the transaction rolls back;
+   * commit already happened → the agent is told "already saved; read the current data".
+
+All other agent tools only read data, so abandoning them changes nothing. Covered by
+`test_timed_out_tool_cannot_write_to_database_later`.
+
+## Order totals
+
+`purchase_orders.total_cost` always equals Σ(committed_qty × unit_price) of the order's active commitments
+(warehouse lines add ₹0). It is recalculated by `procurement_service.recalculate_order_total` whenever a
+commitment changes: on supplier updates (reduction, cancellation, price change) and on recovery approval.
+`tests/conftest.py: check_inventory_and_order_consistency` re-derives every reservation and total from raw
+records and is asserted after each disruption/recovery test.
+
+## Quality requirements
+
+Stored with each request and displayed on every plan with a "not verified automatically" warning. The agent
+prompt forbids claiming they are met, and the explanation facts mark them as unverified. There is no
+certification data in the simulation, so no automatic check is performed.
+
 ## Agent safety limits
 
 | Limit | Default | Setting |

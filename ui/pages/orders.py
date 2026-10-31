@@ -37,7 +37,8 @@ def render() -> None:
     with columns[1]:
         kpi_card("Covered", f"{covered:,} / {order['quantity']:,}", "warehouse + active commitments")
     with columns[2]:
-        kpi_card("Total cost", format_inr(order["total_cost"]), f"Budget {format_inr(order['max_budget'])}")
+        kpi_card("Total cost", format_inr(order["total_cost"]),
+                 f"current supplier commitments · budget {format_inr(order['max_budget'])}")
     with columns[3]:
         kpi_card("Required by", order["required_by"])
 

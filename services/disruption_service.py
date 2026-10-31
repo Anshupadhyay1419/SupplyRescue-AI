@@ -15,6 +15,7 @@ from datetime import date, datetime
 from database import repository
 from database.connection import transaction
 from services.planning_service import calculate_shortage
+from services.procurement_service import recalculate_order_total
 from utils.logger import get_logger
 from utils.validators import parse_date
 
@@ -159,6 +160,7 @@ def detect_supply_disruptions() -> list[int]:
                 continue
 
             _apply_supplier_change(conn, commitment, analysis, now)
+            recalculate_order_total(conn, order["id"])  # keep the order total equal to current commitments
 
             status = "OPEN" if analysis["needs_recovery"] else "NO_ACTION_NEEDED"
             disruption_id = conn.execute(

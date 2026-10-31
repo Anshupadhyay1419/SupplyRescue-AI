@@ -307,6 +307,24 @@ def release_supplier_stock(conn, supplier_id: int, part_number: str, quantity: i
     )
 
 
+def recalculate_order_total(conn, order_id: int) -> float:
+    """
+    Set an order's total to what its suppliers are CURRENTLY committed to deliver.
+
+    total = sum(committed_qty x unit_price) over commitments that are not
+    cancelled or replaced. Warehouse lines add nothing (stock already owned).
+    Called whenever a commitment changes, so the total is never stale.
+    """
+    total = conn.execute(
+        "SELECT COALESCE(SUM(committed_qty * unit_price), 0) FROM supplier_commitments "
+        "WHERE order_id = ? AND status NOT IN ('CANCELLED', 'REPLACED')",
+        (order_id,),
+    ).fetchone()[0]
+    total = round(total, 2)
+    conn.execute("UPDATE purchase_orders SET total_cost = ?, updated_at = ? WHERE id = ?", (total, _now(), order_id))
+    return total
+
+
 def check_supplier_still_eligible(conn, supplier_id: int) -> None:
     """Re-check approval and reliability at the moment of approval."""
     supplier = conn.execute("SELECT * FROM suppliers WHERE id = ?", (supplier_id,)).fetchone()

@@ -190,3 +190,81 @@ def test_real_agent_reports_infeasibility():
     result = run_procurement_agent(get_scenario_request("S7")["id"])
     assert result["status"] == "INFEASIBLE"
     assert repository.get_plan(result["plan_id"])["status"] == "INFEASIBLE"
+
+
+# ------------------------------------------------------------------ tool timeouts
+
+def test_cancellation_token_blocks_late_commit_and_reports_early_commit():
+    from database.connection import get_connection
+    from utils.cancellation import CancellationToken, ToolCancelledError
+
+    late = CancellationToken()
+    assert late.cancel() is True  # agent gave up before the tool saved
+    with pytest.raises(ToolCancelledError):
+        late.commit_if_not_cancelled(get_connection())
+
+    early = CancellationToken()
+    early.commit_if_not_cancelled(get_connection())  # tool saved first
+    assert early.cancel() is False  # agent learns the changes were already saved
+
+
+def test_timed_out_tool_cannot_write_to_database_later():
+    """A slow tool that tries to create RFQs after its timeout must save nothing."""
+    import threading
+    import time
+
+    from langchain_core.runnables import RunnableConfig
+    from langchain_core.tools import tool
+
+    from services import procurement_service, quotation_service
+    from utils.cancellation import ToolCancelledError
+
+    request = get_scenario_request("S8")
+    supplier_id = procurement_service.search_suppliers("MCU-X100")["approved_suppliers"][0]["supplier_id"]
+    finished = threading.Event()
+    outcome = {}
+
+    @tool
+    def slow_rfq_tool(config: RunnableConfig) -> dict:
+        """Test tool: waits, then tries to save RFQs."""
+        try:
+            time.sleep(1.0)
+            quotation_service.send_rfqs_and_collect_responses(
+                request["id"], [supplier_id], 100, config["configurable"]["cancellation_token"])
+            outcome["saved"] = True
+        except ToolCancelledError:
+            outcome["cancelled"] = True
+        finally:
+            finished.set()
+        return {"ok": True}
+
+    result = procurement_agent.run_tool_with_timeout(slow_rfq_tool, {}, {"request_id": request["id"]},
+                                                     timeout_seconds=0.2)
+    assert result["ok"] is False and "Nothing was saved" in result["error"]
+
+    assert finished.wait(5)  # let the abandoned thread run to completion
+    assert outcome == {"cancelled": True}
+    assert repository.list_rfqs(request["id"]) == []  # no late database change
+
+
+# ------------------------------------------------------------------ explanation facts
+
+def test_infeasible_plan_facts_contain_no_recommendation():
+    plan = {"feasible": False, "quantity_needed": 600, "quantity_covered": 400, "total_cost": 47000,
+            "budget": 100000, "reasons": ["Insufficient eligible supply"], "cost_difference": -13000,
+            "original_cost_of_units": 60000, "items": [{"supplier_name": "X"}]}
+    facts = procurement_agent.build_explanation_facts(plan, "RoHS")
+    assert facts["result"].startswith("No feasible plan")
+    assert "allocation" not in facts and "cost_change" not in facts  # nothing that looks like a recommendation
+    assert "not verified" in facts["quality_requirements"]
+
+
+def test_cost_change_direction_is_spelled_out():
+    plan = {"feasible": True, "quantity_needed": 250, "quantity_covered": 250, "total_cost": 27500, "budget": 83500,
+            "expected_delivery": "2026-01-05", "required_by": "2026-01-07", "risk_level": "LOW", "risk_notes": ["ok"],
+            "reasons": [], "cost_difference": 2500, "original_cost_of_units": 25000,
+            "items": [{"supplier_name": "B", "quantity": 250, "unit_price": 110, "lead_time_days": 5,
+                       "source_type": "SUPPLIER"}]}
+    facts = procurement_agent.build_explanation_facts(plan, None)
+    assert facts["cost_change"] == "₹2,500 MORE than the original cost of ₹25,000 for these units"
+    assert "remaining order budget" in facts["total_cost_vs_budget"]

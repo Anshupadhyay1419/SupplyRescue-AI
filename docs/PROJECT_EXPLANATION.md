@@ -37,6 +37,8 @@ The recovery agent reads the disruption, checks the order and warehouse, searche
 ## 10. How does human approval work?
 Every plan is saved as **PROPOSED**. The dashboard shows suppliers, quantities, costs, delivery dates, risk and the reason. Clicking **APPROVE PLAN** runs one database transaction that re-checks stock, approval, deadline and budget, then creates the (simulated) purchase order, supplier commitments and stock reservations. Clicking it twice does nothing harmful — the second click is refused. **REJECT PLAN** records the rejection and lets you change the constraints and ask again.
 
+**What about quality requirements?** They are saved and shown to the approver, but the simulation has no supplier certification data, so the system does *not* check them and says so on every plan. The approver must confirm them.
+
 ## 11. Why use Python tools?
 Because LLMs are good at language and choices but unreliable at arithmetic and rules. During development the model once described a +₹2,500 cost difference as "₹2,500 below the original" — a perfect example. So money, quantities and rules are Python functions with unit tests; the LLM only decides what to look at and explains the result.
 

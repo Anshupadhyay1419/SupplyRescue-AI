@@ -47,7 +47,7 @@ with st.sidebar:
     st.caption(f"{settings.COMPANY_NAME} · simulated data")
 
 pages = [
-    st.Page(overview.render, title="Overview", icon=":material/dashboard:", url_path="overview", default=True),
+    st.Page(overview.render, title="Overview", icon=":material/dashboard:", default=True),  # served at "/"
     st.Page(procurement.render, title="New Procurement", icon=":material/add_shopping_cart:", url_path="procurement"),
     st.Page(suppliers.render, title="Supplier Directory", icon=":material/factory:", url_path="suppliers"),
     st.Page(quotations.render, title="Quotations", icon=":material/request_quote:", url_path="quotations"),

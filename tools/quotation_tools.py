@@ -33,8 +33,9 @@ def create_rfq(supplier_names: list[str], config: RunnableConfig) -> dict:
 
     warehouse_free = procurement_service.get_warehouse_stock(request["part_number"])["free"]
     quantity_to_quote = max(request["quantity"] - warehouse_free, 1)
-    new_ids = quotation_service.create_rfqs(request_id, accepted_ids, quantity_to_quote)
-    responses = quotation_service.simulate_supplier_responses(request_id)
+    # One transaction; if the agent cancelled this call after a timeout, nothing is saved.
+    new_ids, responses = quotation_service.send_rfqs_and_collect_responses(
+        request_id, accepted_ids, quantity_to_quote, get_run_context(config).get("cancellation_token"))
     status = quotation_service.summarize_rfq_status(request_id)
 
     return {

@@ -54,7 +54,11 @@ def _render_disruption(disruption: dict) -> None:
         col4.metric("New unit price", f"₹{disruption['updated_price']:,.2f}", f"was ₹{disruption['original_price']:,.2f}",
                     delta_color="off")
     else:
-        col4.metric("Risk status", disruption["status"].replace("_", " ").title())
+        col4.metric("Affected order", f"#{disruption['order_id']}")
+
+    if disruption["status"] == "RECOVERY_PROPOSED":
+        st.info("A recovery plan is already waiting for approval on the Recovery Plans page. "
+                "Launching the agent again replaces it with a new proposal.")
 
     with st.expander("Optional: relax constraints for this recovery (only if a previous plan was rejected "
                      "or infeasible)"):
@@ -62,6 +66,8 @@ def _render_disruption(disruption: dict) -> None:
                                        key=f"extra_{disruption['id']}")
         extension = st.number_input("Deadline extension allowed (days)", min_value=0, max_value=60, value=0,
                                     key=f"ext_{disruption['id']}")
+        st.caption("These only widen what the agent may propose. If you approve a plan that uses them, the "
+                   "order's budget and/or required date are updated to match.")
 
     if st.button("Launch AI Recovery", type="primary", key=f"recover_{disruption['id']}"):
         result = run_agent_with_progress(run_recovery_agent, disruption["id"], extra_budget=extra_budget,
